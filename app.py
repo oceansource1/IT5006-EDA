@@ -114,7 +114,6 @@ def load_map_sample(year: int, limit: int = 20000):
 
 @st.cache_data(show_spinner=True)
 def load_year_type_counts(start_year=2018, end_year=2024, top_n=5):
-    # 1) 先拿 Top N 类型（全时间段，真实count，不抽样）
     params_top = {
         "$select": "primary_type, count(*) as cnt",
         "$where": f"date between '{start_year}-01-01T00:00:00' and '{end_year}-12-31T23:59:59'",
@@ -129,7 +128,6 @@ def load_year_type_counts(start_year=2018, end_year=2024, top_n=5):
     if len(top_types) == 0:
         return pd.DataFrame(), url_top
 
-    # 2) 再按 年份 + 类型 聚合（关键：date_extract_y）
     type_filter = ", ".join([f"'{t}'" for t in top_types])
     year_expr = "date_extract_y(date)"
 
@@ -139,7 +137,7 @@ def load_year_type_counts(start_year=2018, end_year=2024, top_n=5):
             f"date between '{start_year}-01-01T00:00:00' and '{end_year}-12-31T23:59:59' "
             f"AND primary_type IN ({type_filter})"
         ),
-        # 注意：group 里必须写表达式本体，不要写 year 这个别名
+
         "$group": f"{year_expr}, primary_type",
         "$order": f"{year_expr} ASC",
     }
@@ -152,6 +150,7 @@ def load_year_type_counts(start_year=2018, end_year=2024, top_n=5):
     df = df.dropna(subset=["year", "primary_type", "cnt"])
     df["year"] = df["year"].astype(int)
     return df, url_trend
+
 # Sidebar
 st.sidebar.header("Controls")
 year_choice = st.sidebar.selectbox("Choose year (for monthly/type/map)", list(range(END_YEAR, START_YEAR - 1, -1)))
@@ -189,6 +188,7 @@ if not top_types_df.empty:
 else:
     st.warning("No type data returned (unexpected).")
 
+# 4) Crime Type vs Year
 st.subheader("Crime Correlation: Crime Type vs Year")
 
 type_trend_df, type_trend_url = load_year_type_counts(2018, 2024, 5)
@@ -209,7 +209,7 @@ else:
         st.code(type_trend_url)
         st.write(pivot_df)
 
-# 4) Map
+# 5) Map
 
 st.subheader(f"4) Spatial Distribution Map (Sample) — {year_choice}")
 map_df, map_url = load_map_sample(year_choice, limit=map_limit)
